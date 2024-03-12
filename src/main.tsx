@@ -1,9 +1,51 @@
 import { Devvit, RichTextBuilder } from '@devvit/public-api';
+import { isValidDimension, getImageUrl } from './utils/images.js';
 
 Devvit.configure({
   redditAPI: true, // context.reddit will now be available
   media: true
 });
+
+// Image quality check bot
+Devvit.addTrigger(
+  {
+    event: 'PostSubmit',
+    async onEvent(event, { reddit }) {
+      if(!event.post || !event.author) {
+        throw 'Invalid post object'
+      }
+      const postBody = event.post.selftext;
+      const imageUrl = getImageUrl(postBody);
+      if(imageUrl && isValidDimension(imageUrl)) {
+        return; // Do nothing, it was a valid imageUrl
+      }
+
+      // Now we have problems...
+      const commentRichText = new RichTextBuilder();
+      const user = await reddit.getUserById(event.author.id);
+      const username = user.username;
+      const text = `
+      Hi u/${username}, please follow the instructions below and submit a higher quality image:
+      Export your resume as a PDF file
+
+      Convert it to a 600 DPI PNG file using https://www.cleverpdf.com/pdf-to-images: https://imgur.com/RxxYFQe
+
+      On DESKTOP (NEW.REDDIT), insert the PNG into a text submission
+
+      Please don't:
+
+      Take a picture of your resume with your phone camera
+
+      Take a screenshot of your resume
+
+      Crop out your margins
+
+      Upload a dark mode version of your resume
+      `
+      commentRichText.paragraph(() => {text: text});
+      await reddit.submitComment({ id: event.post.id, richtext: commentRichText })
+     }
+  });
 
 Devvit.addMenuItem({
   label: '[Eng Res Test] Add creation post',
@@ -32,22 +74,6 @@ Devvit.addMenuItem({
   },
 });
 
-const MIN_IMAGE_WIDTH = 300
-function isValidDimension(urlString: string): boolean {
-  const url = new URL(urlString);
-  const widthStr = url.searchParams.get('width');
-  if(!widthStr) {
-    return false;
-  }
-
-  const width = parseInt(widthStr);
-
-  if(width < MIN_IMAGE_WIDTH) {
-    return false;
-  }
-
-  return true;
-}
 
 Devvit.addCustomPostType({
   name: 'Hello Blocks',
