@@ -21,8 +21,14 @@ Devvit.addTrigger(
       if(!event.post || !event.author) {
         throw 'Invalid post object'
       }
-      const postBody = event.post.selftext;
-      const imageUrl = getImageUrl(postBody);
+      const post = await reddit.getPostById(event.post.id);
+
+      if(!post) {
+        throw 'Invalid post object'
+      }
+
+      console.log(post.body);
+      const imageUrl = getImageUrl(post.body!);
       if(imageUrl && isValidDimension(imageUrl)) {
         return; // Do nothing, it was a valid imageUrl
       }
@@ -53,7 +59,6 @@ const markdownText = `
 `
        const comment = await reddit.submitComment({ id: event.post.id, text: markdownText});
        await comment.distinguish(true);
-       const post = await reddit.getPostById(event.post.id);
        const subreddit = await reddit.getCurrentSubreddit();
        const flairId = await settings.get('imageQualityFlairId') as string;
        if (!flairId) {
