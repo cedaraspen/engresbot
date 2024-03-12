@@ -6,11 +6,18 @@ Devvit.configure({
   media: true
 });
 
-// Image quality check bot
+Devvit.addSettings([
+  {
+    type: 'string',
+    label: 'Image quality flair id',
+    name: 'imageQualityFlairId'
+  }
+]);
+
 Devvit.addTrigger(
   {
     event: 'PostSubmit',
-    async onEvent(event, { reddit }) {
+    async onEvent(event, { reddit, settings }) {
       if(!event.post || !event.author) {
         throw 'Invalid post object'
       }
@@ -20,30 +27,40 @@ Devvit.addTrigger(
         return; // Do nothing, it was a valid imageUrl
       }
 
+      console.log(`Invalid imageUrl: ${imageUrl} or isValidDimension`);
+
+      //
       // Now we have problems...
-      const commentRichText = new RichTextBuilder();
       const user = await reddit.getUserById(event.author.id);
       const username = user.username;
-      const text = `
-      Hi u/${username}, please follow the instructions below and submit a higher quality image:
-      Export your resume as a PDF file
+const markdownText = `
+**Hi u/${username}, please follow the instructions below and submit a higher quality image:**
 
-      Convert it to a 600 DPI PNG file using https://www.cleverpdf.com/pdf-to-images: https://imgur.com/RxxYFQe
+---
 
-      On DESKTOP (NEW.REDDIT), insert the PNG into a text submission
+1. Export your resume as a [PDF file](https://www.adobe.com/uk/acrobat/resources/google-doc-to-pdf.html)
+2. Convert it to a 600 DPI **PNG file** using https://www.cleverpdf.com/pdf-to-images: https://imgur.com/RxxYFQe
+3. On [DESKTOP (NEW.REDDIT)](https://new.reddit.com/r/EngineeringResumes/submit), insert the PNG into a [text submission](https://imgur.com/8iik4YP)
 
-      Please don't:
+---
 
-      Take a picture of your resume with your phone camera
+**Please don't:**
 
-      Take a screenshot of your resume
-
-      Crop out your margins
-
-      Upload a dark mode version of your resume
-      `
-      commentRichText.paragraph(() => {text: text});
-      await reddit.submitComment({ id: event.post.id, richtext: commentRichText })
+- Take a picture of your resume with your phone camera
+- Take a screenshot of your resume
+- Crop out your margins
+- Upload a dark mode version of your resume
+`
+       const comment = await reddit.submitComment({ id: event.post.id, text: markdownText});
+       await comment.distinguish(true);
+       const post = await reddit.getPostById(event.post.id);
+       const subreddit = await reddit.getCurrentSubreddit();
+       const flairId = await settings.get('imageQualityFlairId') as string;
+       if (!flairId) {
+        console.error('No image quality flair ID configured');
+       }
+       await reddit.setPostFlair({ postId: post.id, subredditName: subreddit.name, flairTemplateId: flairId });
+       await post.lock();
      }
   });
 

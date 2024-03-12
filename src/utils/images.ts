@@ -17,7 +17,7 @@ export function isValidDimension(urlString: string): boolean {
 
 export function getImageUrl(text: string) {
     // Regular expression to match URLs
-    const urlRegex = /https:\/\/preview\.redd\.it\/[a-zA-Z0-9]+\.png/g;
+    const urlRegex = /https:\/\/preview\.redd\.it\/[a-zA-Z0-9]+.+/g;
 
     // Find all matches in the input text
     const matches = text.match(urlRegex);
