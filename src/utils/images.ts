@@ -1,30 +1,41 @@
+import { Post } from "@devvit/public-api";
+
 const MIN_IMAGE_WIDTH = 300
 export function isValidDimension(urlString: string): boolean {
   const url = new URL(urlString);
   const widthStr = url.searchParams.get('width');
-  if(!widthStr) {
+  if (!widthStr) {
     return false;
   }
 
   const width = parseInt(widthStr);
 
-  if(width < MIN_IMAGE_WIDTH) {
+  if (width < MIN_IMAGE_WIDTH) {
     return false;
   }
 
   return true;
 }
 
-export function getImageUrl(text: string) {
-    // Regular expression to match URLs
-    const urlRegex = /https:\/\/preview\.redd\.it\/[a-zA-Z0-9]+.+/g;
+export function getImageUrl(post: Post) {
+  console.log('postUrl', post.url);
+  console.log('bodyHtml', post.bodyHtml);
+  return parseUrl(post.url) || parseUrl(post.bodyHtml!);
+}
 
-    // Find all matches in the input text
-    const matches = text.match(urlRegex);
+function parseUrl(text: string) {
+  if (!text) {
+    return undefined;
+  }
+  // Regular expression to match URLs
+  const urlRegex = /https:\/\/preview\.redd\.it\/[a-zA-Z0-9]+.+/g;
 
-    if (matches) {
-        // Assuming there's only one redd.it URL in the text
-        return matches[0];
-    }
-    return undefined
+  console.log('parseUrl.text', text);
+  // Find all matches in the input text
+  const matches = text.match(urlRegex);
+
+  if (!matches) {
+    return undefined;
+  }
+  return matches[0]
 }
