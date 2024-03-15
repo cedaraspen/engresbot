@@ -27,8 +27,8 @@ Devvit.addTrigger(
         throw 'Invalid post object'
       }
 
-      console.log(post.body);
-      const imageUrl = getImageUrl(post.body!);
+      console.log(post.bodyHtml);
+      const imageUrl = getImageUrl(post.bodyHtml!);
       if(imageUrl && isValidDimension(imageUrl)) {
         return; // Do nothing, it was a valid imageUrl
       }
