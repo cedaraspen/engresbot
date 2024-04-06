@@ -1,6 +1,6 @@
 import { Post } from "@devvit/public-api";
 
-const MIN_IMAGE_WIDTH = 300
+const MIN_IMAGE_WIDTH = 3000
 export function isValidDimension(urlString: string): boolean {
   const url = new URL(urlString);
   const widthStr = url.searchParams.get('width');
