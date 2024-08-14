@@ -9,7 +9,7 @@
     "test:unit": "vitest --run"
   },
   "dependencies": {
-    "@devvit/public-api": "^0.10.18-next-2024-03-15-7b8d10b8e.0"
+    "@devvit/public-api": "^0.10.21-next-2024-05-09-334b506fd.0"
   },
   "devDependencies": {
     "typescript": "5.3.2",

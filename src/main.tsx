@@ -1,5 +1,5 @@
 import { Devvit, RichTextBuilder } from "@devvit/public-api";
-import { isValidDimension, getImageUrl } from "./utils/images.js";
+import { containsValidImage, getMediaId, isValidDimension } from "./utils/images.js";
 
 Devvit.configure({
   redditAPI: true, // context.reddit will now be available
@@ -14,72 +14,42 @@ Devvit.addSettings([
   },
 ]);
 
-Devvit.addTrigger({
-  event: "PostSubmit",
-  async onEvent(event, { reddit, settings }) {
-    if (!event.post || !event.author) {
-      throw "Invalid post object";
-    }
-    const post = await reddit.getPostById(event.post.id);
+const form = Devvit.createForm(
+  {
+    fields: [
+      {
+        name: 'title',
+        label: 'title',
+        type: 'paragraph',
+        helpText: "Please format your title as follows:[X YoE] or [Student], where X is the number of your FULL-TIME (NON-INTERNSHIP) years of experience",
+        required: true,
+        defaultValue: formResponse.title,
+      },
+      {
+        type: 'paragraph',
+        name: "description",
+        label: 'description',
+        helpText: "Please include a brief description 250+ characters of your resume. This can include your experience, skills, and what you are looking for in your next role.",
+        required: true,
+        defaultValue: formResponse.description,
+       },
+      {
+        name: 'resume',
+        label: 'upload image',
+        type: 'image',
+        required: true,
+        helpText: "During conversion, please set DPI to 600 ",
+      },
+    ],
+}, () => { });
 
-    if (!post) {
-      throw "Invalid post object";
-    }
-
-    const imageUrl = getImageUrl(post);
-    if (imageUrl && isValidDimension(imageUrl)) {
-      return; // Do nothing, it was a valid imageUrl
-    }
-
-    console.log(`Invalid imageUrl: ${imageUrl} or isValidDimension`);
-
-    //
-    // Now we have problems...
-    const user = await reddit.getUserById(event.author.id);
-    const username = user.username;
-    const markdownText = `
-**Hi u/${username}, please follow the instructions below and submit a higher quality image:**
-
----
-
-1. Export your resume as a [PDF file](https://www.adobe.com/uk/acrobat/resources/google-doc-to-pdf.html)
-2. Convert it to a 600 DPI **PNG file** using https://www.cleverpdf.com/pdf-to-images: https://imgur.com/RxxYFQe
-3. On [DESKTOP (NEW.REDDIT)](https://new.reddit.com/r/EngineeringResumes/submit), insert the PNG into a [text submission](https://imgur.com/8iik4YP)
-
----
-
-**Please don't:**
-
-- Take a picture of your resume with your phone camera
-- Take a screenshot of your resume
-- Crop out your margins
-- Upload a dark mode version of your resume
-`;
-    const comment = await reddit.submitComment({
-      id: event.post.id,
-      text: markdownText,
-    });
-    await comment.distinguish(true);
-    const subreddit = await reddit.getCurrentSubreddit();
-    const flairId = (await settings.get("imageQualityFlairId")) as string;
-    if (!flairId) {
-      console.error("No image quality flair ID configured");
-    }
-    await reddit.setPostFlair({
-      postId: post.id,
-      subredditName: subreddit.name,
-      flairTemplateId: flairId,
-    });
-    await post.lock();
-  },
-});
 
 Devvit.addMenuItem({
   label: "[Eng Res Test] Add creation post",
   location: "subreddit",
   forUserType: "moderator",
 
-  onPress: async (_, { reddit, ui }) => {
+  onPress: async (_, { reddit, ui, v2Events }) => {
     const subreddit = await reddit.getCurrentSubreddit();
     const post = await reddit.submitPost({
       // This will show while your custom post is loading
@@ -101,12 +71,26 @@ Devvit.addMenuItem({
   },
 });
 
+Devvit.addMenuItem({
+  label: '[Eng Res Test] Test dimensions',
+  location: 'post',
+  forUserType: 'moderator',
+  onPress: async(event, { reddit, ui }) => {
+    const post = await reddit.getPostById(event.targetId);
+    const result = containsValidImage(post);
+    ui.showToast(`Check result: ${result}`);
+  }
+});
+
 Devvit.addCustomPostType({
   name: "Hello Blocks",
   height: "regular",
-  render: ({ ui, useState, useForm, reddit, media }) => {
+  render: ({ ui, useState, useForm, reddit, media, scheduler }) => {
     const [currentUsername] = useState(async () => {
       const currentUser = await reddit.getCurrentUser();
+      if(!currentUser) {
+        return undefined;
+      }
       return currentUser.username;
     });
 
@@ -128,11 +112,10 @@ Devvit.addCustomPostType({
             name: "additionalContext",
           },
           {
-            type: "string",
-            label: "Resume URL",
-            helpText: "Must be a Reddit hosted image!",
-            required: true,
-            name: "resumeUrl",
+            type: 'image',
+            label: 'Resume',
+            helpText: 'Attach a high resolution PNG file here',
+            name: 'resumeUrl',
           },
         ],
       },
@@ -141,10 +124,15 @@ Devvit.addCustomPostType({
           ui.showToast("Invalid URL or dimensions provided");
         }
 
-        const imgMedia = await media.upload({ url: resumeUrl, type: "image " });
+        const mediaId = getMediaId(resumeUrl);
+        if(!mediaId) {
+          ui.showToast('Error processing image, please try again ');
+          return
+        }
+
         const rtBuilder = new RichTextBuilder();
-        rtBuilder.image({ mediaId: imgMedia.mediaId });
-        rtBuilder.paragraph(additionalContext);
+        rtBuilder.image({ mediaId: mediaId });
+        rtBuilder.paragraph(() => additionalContext);
 
         const currentSubreddit = await reddit.getCurrentSubreddit();
         const post = await reddit.submitPost({
@@ -158,6 +146,17 @@ Devvit.addCustomPostType({
       }
     );
 
+    if(!currentUsername) {
+      return (
+        <vstack alignment="center middle" height="100%" gap="large">
+        <button></button>
+          <text size="xxlarge" weight="bold">
+            You must be logged in to make posts to r/EngineeringResumes
+            </text>
+        </vstack>
+      )
+    }
+
     // Your custom post layout goes here!
     return (
       <vstack alignment="center middle" height="100%" gap="large">
@@ -165,17 +164,12 @@ Devvit.addCustomPostType({
           Hello {currentUsername}! 👋
         </text>
         <text>Welcome to r/EngineeringResumes. </text>
-        <button
-          appearance="primary"
-          onPress={() => {
-            ui.showForm(creationForm);
-          }}
-        >
+        <button appearance="primary" onPress={() => ui.showForm(creationForm)}>
           Post your resume
         </button>
       </vstack>
-    );
-  },
+    )
+},
 });
 
 export default Devvit;
